@@ -30,6 +30,7 @@ export type TextbookStructuredEvent = {
   data: {
     textbookId: string;
     chapterIds: string[];
+    markdown: string; // Full text content for chunking
   };
 };
 

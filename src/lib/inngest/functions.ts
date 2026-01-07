@@ -1,6 +1,8 @@
 import { inngest } from "./client";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
+import { chunkText, extractPageInfo, addPageNumbersToChunks } from "@/lib/rag/chunker";
+import { generateEmbeddings, formatEmbeddingForPgvector } from "@/lib/rag/embeddings";
 
 type TextbookUpdate = Database["public"]["Tables"]["textbooks"]["Update"];
 
@@ -145,12 +147,13 @@ export const parseTextbookStructure = inngest.createFunction(
       await updateTextbookStatus(textbookId, "embedding");
     });
 
-    // Trigger embedding generation
+    // Trigger embedding generation (pass markdown for chunking)
     await step.sendEvent("trigger-embedding", {
       name: "textbook/structured",
       data: {
         textbookId,
         chapterIds: savedChapters.map((ch) => ch.id),
+        markdown, // Pass through for chunking
       },
     });
 
@@ -159,7 +162,7 @@ export const parseTextbookStructure = inngest.createFunction(
 );
 
 // 3. Generate embeddings for RAG
-export const generateEmbeddings = inngest.createFunction(
+export const generateEmbeddingsFunc = inngest.createFunction(
   {
     id: "generate-embeddings",
     name: "Generate Embeddings",
@@ -167,33 +170,68 @@ export const generateEmbeddings = inngest.createFunction(
   },
   { event: "textbook/structured" },
   async ({ event, step }) => {
-    const { textbookId, chapterIds } = event.data;
+    const { textbookId, chapterIds, markdown } = event.data;
     const supabase = getSupabaseAdmin();
 
-    // For MVP, we'll create simple content chunks without actual embeddings
-    // Real implementation would use OpenAI embeddings API
-    const chunkCount = await step.run("create-chunks", async () => {
-      // Get chapters with their content
-      const { data: chapters } = await supabase
-        .from("chapters")
-        .select("*")
-        .in("id", chapterIds);
+    // Step 1: Chunk the text content
+    const chunks = await step.run("chunk-content", async () => {
+      // Extract page info if available (from PyMuPDF format)
+      const pageMap = extractPageInfo(markdown);
 
-      if (!chapters) return 0;
+      // Chunk the text
+      let textChunks = chunkText(markdown);
 
-      // Create placeholder chunks for each chapter
-      const chunks = chapters.map((chapter: { id: string; title: string; chapter_number: number }, index: number) => ({
+      // Add page numbers if we have them
+      if (pageMap.size > 0) {
+        textChunks = addPageNumbersToChunks(textChunks, pageMap);
+      }
+
+      return textChunks;
+    });
+
+    // Step 2: Generate embeddings for all chunks
+    const embeddingResults = await step.run("generate-embeddings", async () => {
+      const texts = chunks.map((chunk) => chunk.content);
+
+      // Check if OpenAI API key is available
+      if (!process.env.OPENAI_API_KEY) {
+        console.warn("OPENAI_API_KEY not set, skipping embedding generation");
+        return null;
+      }
+
+      try {
+        return await generateEmbeddings(texts);
+      } catch (error) {
+        console.error("Embedding generation failed:", error);
+        return null;
+      }
+    });
+
+    // Step 3: Save chunks to database
+    const chunkCount = await step.run("save-chunks", async () => {
+      // Map chunks to chapter IDs (simple: assign to first chapter for now)
+      // In production, you'd match chunks to chapters based on content/headers
+      const firstChapterId = chapterIds[0];
+
+      const chunkRecords = chunks.map((chunk, index) => ({
         textbook_id: textbookId,
-        chapter_id: chapter.id,
-        content: `Content from ${chapter.title}`, // Placeholder
-        chunk_index: index,
-        metadata: { chapter_number: chapter.chapter_number },
+        chapter_id: firstChapterId, // TODO: Improve chapter mapping
+        content: chunk.content,
+        chunk_index: chunk.index,
+        metadata: {
+          ...chunk.metadata,
+          sectionTitle: chunk.metadata.sectionTitle,
+        },
+        // Include embedding if we generated them
+        ...(embeddingResults?.[index]?.embedding
+          ? { embedding: formatEmbeddingForPgvector(embeddingResults[index].embedding) }
+          : {}),
       }));
 
-      const { error } = await supabase.from("content_chunks").insert(chunks as never);
+      const { error } = await supabase.from("content_chunks").insert(chunkRecords as never);
       if (error) throw error;
 
-      return chunks.length;
+      return chunkRecords.length;
     });
 
     // Update status
@@ -210,7 +248,11 @@ export const generateEmbeddings = inngest.createFunction(
       },
     });
 
-    return { success: true, chunkCount };
+    return {
+      success: true,
+      chunkCount,
+      embeddingsGenerated: embeddingResults !== null,
+    };
   }
 );
 
@@ -337,7 +379,7 @@ export const generateSolutions = inngest.createFunction(
 export const functions = [
   processTextbookUpload,
   parseTextbookStructure,
-  generateEmbeddings,
+  generateEmbeddingsFunc,
   extractExercises,
   generateSolutions,
 ];
