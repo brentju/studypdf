@@ -1,65 +1,370 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-background">
+      {/* Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-sm">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+              <span className="text-sm font-bold text-primary-foreground">S</span>
+            </div>
+            <span className="text-lg font-semibold text-foreground">StudyPDF</span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/login">
+              <Button variant="ghost" size="sm">
+                Log in
+              </Button>
+            </Link>
+            <Link href="/signup">
+              <Button size="sm">Get Started</Button>
+            </Link>
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="relative flex min-h-screen items-center justify-center px-6 pt-16">
+        {/* Background gradient */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-1/2 left-1/2 h-[800px] w-[800px] -translate-x-1/2 rounded-full bg-primary/5 blur-3xl" />
+          <div className="absolute top-1/4 right-0 h-[600px] w-[600px] rounded-full bg-accent-pink/5 blur-3xl" />
+        </div>
+
+        <div className="relative z-10 mx-auto max-w-4xl text-center">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-4 py-1.5 text-sm text-muted-foreground">
+            <span className="h-2 w-2 rounded-full bg-accent-blue" />
+            AI-Powered Learning
+          </div>
+
+          <h1 className="mb-6 text-5xl font-bold leading-tight tracking-tight text-foreground md:text-6xl lg:text-7xl">
+            Master your textbooks
+            <br />
+            <span className="text-primary">with AI assistance</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+          <p className="mx-auto mb-10 max-w-2xl text-lg text-muted-foreground md:text-xl">
+            Upload PDF textbooks, automatically extract exercises, get
+            AI-generated solutions, and receive instant feedback on your
+            answers.
           </p>
+
+          <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <Link href="/signup">
+              <Button size="lg" className="w-full sm:w-auto">
+                Start Learning Free
+              </Button>
+            </Link>
+            <Link href="#features">
+              <Button variant="outline" size="lg" className="w-full sm:w-auto">
+                See How It Works
+              </Button>
+            </Link>
+          </div>
+
+          {/* Stats */}
+          <div className="mt-16 grid grid-cols-3 gap-8">
+            {[
+              { value: "50+", label: "Exercise Types" },
+              { value: "99%", label: "Extraction Accuracy" },
+              { value: "24/7", label: "AI Assistance" },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <div className="text-3xl font-bold text-primary">{stat.value}</div>
+                <div className="text-sm text-muted-foreground">{stat.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+      </section>
+
+      {/* Features Section */}
+      <section id="features" className="py-24 px-6">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-16 text-center">
+            <h2 className="mb-4 text-3xl font-bold text-foreground md:text-4xl">
+              Everything you need to excel
+            </h2>
+            <p className="mx-auto max-w-2xl text-muted-foreground">
+              From PDF to practice in minutes. Our AI handles the heavy lifting
+              so you can focus on learning.
+            </p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <FeatureCard
+              icon={<UploadIcon />}
+              title="Smart PDF Processing"
+              description="Upload any textbook PDF and our AI will automatically detect chapters, sections, and exercises."
+              color="blue"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <FeatureCard
+              icon={<ExtractIcon />}
+              title="Exercise Extraction"
+              description="Automatically identify and extract all exercises with support for multiple choice, short answer, and more."
+              color="yellow"
+            />
+            <FeatureCard
+              icon={<SolutionIcon />}
+              title="AI Solutions"
+              description="Get step-by-step solutions generated by AI, with explanations that help you understand the concepts."
+              color="pink"
+            />
+            <FeatureCard
+              icon={<FeedbackIcon />}
+              title="Instant Feedback"
+              description="Submit your answers and receive detailed feedback with scoring and improvement suggestions."
+              color="peach"
+            />
+            <FeatureCard
+              icon={<LinkIcon />}
+              title="Contextual Help"
+              description="Each exercise links back to the relevant textbook sections so you can review the material."
+              color="blue"
+            />
+            <FeatureCard
+              icon={<ProgressIcon />}
+              title="Track Progress"
+              description="Monitor your learning journey with completion tracking and performance analytics."
+              color="yellow"
+            />
+          </div>
         </div>
-      </main>
+      </section>
+
+      {/* How It Works */}
+      <section className="py-24 px-6 bg-secondary/30">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-16 text-center">
+            <h2 className="mb-4 text-3xl font-bold text-foreground md:text-4xl">
+              How it works
+            </h2>
+            <p className="mx-auto max-w-2xl text-muted-foreground">
+              Three simple steps to transform your textbook into an interactive
+              learning experience.
+            </p>
+          </div>
+
+          <div className="grid gap-8 md:grid-cols-3">
+            {[
+              {
+                step: "01",
+                title: "Upload",
+                description:
+                  "Upload your PDF textbook. We support files up to 500MB with automatic processing.",
+              },
+              {
+                step: "02",
+                title: "Extract",
+                description:
+                  "Our AI analyzes the content, extracts exercises, and generates solutions automatically.",
+              },
+              {
+                step: "03",
+                title: "Practice",
+                description:
+                  "Start practicing with interactive exercises and get instant AI feedback on your answers.",
+              },
+            ].map((item) => (
+              <div key={item.step} className="relative">
+                <div className="mb-4 text-6xl font-bold text-primary/20">
+                  {item.step}
+                </div>
+                <h3 className="mb-2 text-xl font-semibold text-foreground">
+                  {item.title}
+                </h3>
+                <p className="text-muted-foreground">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-24 px-6">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="mb-4 text-3xl font-bold text-foreground md:text-4xl">
+            Ready to transform your studying?
+          </h2>
+          <p className="mb-8 text-lg text-muted-foreground">
+            Join thousands of students who are learning smarter with StudyPDF.
+          </p>
+          <Link href="/signup">
+            <Button size="lg">Get Started Free</Button>
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-border py-12 px-6">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 md:flex-row">
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary">
+              <span className="text-xs font-bold text-primary-foreground">S</span>
+            </div>
+            <span className="text-sm text-muted-foreground">
+              StudyPDF - AI-Powered Learning
+            </span>
+          </div>
+          <div className="flex gap-6 text-sm text-muted-foreground">
+            <Link href="/privacy" className="hover:text-foreground transition-colors">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-foreground transition-colors">
+              Terms
+            </Link>
+            <Link href="/contact" className="hover:text-foreground transition-colors">
+              Contact
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
+  );
+}
+
+function FeatureCard({
+  icon,
+  title,
+  description,
+  color,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  color: "blue" | "yellow" | "pink" | "peach";
+}) {
+  const colorClasses = {
+    blue: "bg-accent-blue/10 text-accent-blue",
+    yellow: "bg-accent-yellow/10 text-accent-yellow",
+    pink: "bg-accent-pink/10 text-accent-pink",
+    peach: "bg-accent-peach/10 text-accent-peach",
+  };
+
+  return (
+    <Card className="border-border/50 bg-card/50 backdrop-blur-sm transition-all hover:border-primary/30 hover:bg-card">
+      <CardContent className="p-6">
+        <div
+          className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg ${colorClasses[color]}`}
+        >
+          {icon}
+        </div>
+        <h3 className="mb-2 text-lg font-semibold text-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Icon components
+function UploadIcon() {
+  return (
+    <svg
+      className="h-6 w-6"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+      />
+    </svg>
+  );
+}
+
+function ExtractIcon() {
+  return (
+    <svg
+      className="h-6 w-6"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+      />
+    </svg>
+  );
+}
+
+function SolutionIcon() {
+  return (
+    <svg
+      className="h-6 w-6"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+      />
+    </svg>
+  );
+}
+
+function FeedbackIcon() {
+  return (
+    <svg
+      className="h-6 w-6"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+      />
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg
+      className="h-6 w-6"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+      />
+    </svg>
+  );
+}
+
+function ProgressIcon() {
+  return (
+    <svg
+      className="h-6 w-6"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+      />
+    </svg>
   );
 }

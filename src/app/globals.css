@@ -1,26 +1,188 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  /* Bilt-inspired accent colors */
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-pink: var(--accent-pink);
+  --color-accent-peach: var(--accent-peach);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/*
+ * StudyPDF Color System - Bilt-inspired Dark Theme
+ * Primary: Near-black backgrounds with soft pastel accents
+ * Design: Minimalist, technological, futuristic
+ */
+
+:root {
+  --radius: 0.625rem;
+
+  /* Bilt-inspired dark theme as default */
+  --background: #010a13;
+  --background-secondary: #030f1c;
+  --foreground: #fbfbfb;
+
+  /* Card surfaces - slightly lighter than background */
+  --card: #0a1520;
+  --card-foreground: #fbfbfb;
+
+  /* Popover - same as card */
+  --popover: #0a1520;
+  --popover-foreground: #fbfbfb;
+
+  /* Primary - soft blue accent */
+  --primary: #97c6ea;
+  --primary-foreground: #010a13;
+
+  /* Secondary - subtle dark surface */
+  --secondary: #0f1d2a;
+  --secondary-foreground: #fbfbfb;
+
+  /* Muted - for disabled/subtle elements */
+  --muted: #1a2836;
+  --muted-foreground: #8899a8;
+
+  /* Accent - for hover states */
+  --accent: #1a2836;
+  --accent-foreground: #fbfbfb;
+
+  /* Destructive - for errors/warnings */
+  --destructive: #ff6b6b;
+
+  /* Borders and inputs */
+  --border: rgba(151, 198, 234, 0.15);
+  --input: rgba(151, 198, 234, 0.1);
+  --ring: #97c6ea;
+
+  /* Bilt accent palette */
+  --accent-blue: #97c6ea;
+  --accent-yellow: #edd496;
+  --accent-pink: #ffdadc;
+  --accent-peach: #fbdfc9;
+
+  /* Chart colors using accent palette */
+  --chart-1: #97c6ea;
+  --chart-2: #edd496;
+  --chart-3: #ffdadc;
+  --chart-4: #fbdfc9;
+  --chart-5: #a8d4b8;
+
+  /* Sidebar */
+  --sidebar: #030f1c;
+  --sidebar-foreground: #fbfbfb;
+  --sidebar-primary: #97c6ea;
+  --sidebar-primary-foreground: #010a13;
+  --sidebar-accent: #1a2836;
+  --sidebar-accent-foreground: #fbfbfb;
+  --sidebar-border: rgba(151, 198, 234, 0.1);
+  --sidebar-ring: #97c6ea;
+}
+
+/* Light mode override (optional, for accessibility) */
+.light {
+  --background: #fbfbfb;
+  --foreground: #010a13;
+  --card: #ffffff;
+  --card-foreground: #010a13;
+  --popover: #ffffff;
+  --popover-foreground: #010a13;
+  --primary: #1a5f8a;
+  --primary-foreground: #fbfbfb;
+  --secondary: #f0f4f8;
+  --secondary-foreground: #010a13;
+  --muted: #e8eef4;
+  --muted-foreground: #5a6a7a;
+  --accent: #e8eef4;
+  --accent-foreground: #010a13;
+  --destructive: #dc3545;
+  --border: rgba(1, 10, 19, 0.1);
+  --input: rgba(1, 10, 19, 0.1);
+  --ring: #1a5f8a;
+  --sidebar: #f0f4f8;
+  --sidebar-foreground: #010a13;
+  --sidebar-primary: #1a5f8a;
+  --sidebar-primary-foreground: #fbfbfb;
+  --sidebar-accent: #e8eef4;
+  --sidebar-accent-foreground: #010a13;
+  --sidebar-border: rgba(1, 10, 19, 0.1);
+  --sidebar-ring: #1a5f8a;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Custom utility classes for accent colors */
+@layer utilities {
+  .text-accent-blue { color: var(--accent-blue); }
+  .text-accent-yellow { color: var(--accent-yellow); }
+  .text-accent-pink { color: var(--accent-pink); }
+  .text-accent-peach { color: var(--accent-peach); }
+
+  .bg-accent-blue { background-color: var(--accent-blue); }
+  .bg-accent-yellow { background-color: var(--accent-yellow); }
+  .bg-accent-pink { background-color: var(--accent-pink); }
+  .bg-accent-peach { background-color: var(--accent-peach); }
+
+  .border-accent-blue { border-color: var(--accent-blue); }
+  .border-accent-yellow { border-color: var(--accent-yellow); }
+  .border-accent-pink { border-color: var(--accent-pink); }
+  .border-accent-peach { border-color: var(--accent-peach); }
+
+  /* Gradient utilities */
+  .gradient-blue-pink {
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-pink));
+  }
+  .gradient-yellow-peach {
+    background: linear-gradient(135deg, var(--accent-yellow), var(--accent-peach));
+  }
 }
