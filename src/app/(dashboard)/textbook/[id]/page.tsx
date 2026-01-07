@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProcessingStatus } from "./processing-status";
 import type { Database } from "@/types/database";
 
 type Textbook = Database["public"]["Tables"]["textbooks"]["Row"];
@@ -43,30 +43,6 @@ export default async function TextbookPage({
     .eq("textbook_id", id) as { data: Exercise[] | null };
 
   const isProcessing = !["completed", "failed"].includes(textbook.processing_status);
-
-  const statusLabels: Record<string, string> = {
-    pending: "Waiting to start",
-    uploading: "Uploading PDF",
-    extracting: "Extracting text from PDF",
-    structuring: "Organizing chapters",
-    embedding: "Creating search index",
-    extracting_exercises: "Finding exercises",
-    generating_solutions: "Generating solutions",
-    completed: "Ready to study",
-    failed: "Processing failed",
-  };
-
-  const statusProgress: Record<string, number> = {
-    pending: 0,
-    uploading: 10,
-    extracting: 25,
-    structuring: 40,
-    embedding: 55,
-    extracting_exercises: 70,
-    generating_solutions: 85,
-    completed: 100,
-    failed: 0,
-  };
 
   // Group exercises by chapter
   const exercisesByChapter = exercises?.reduce((acc, exercise) => {
@@ -108,23 +84,10 @@ export default async function TextbookPage({
 
       {/* Processing Status */}
       {isProcessing && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground">Processing your textbook...</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {statusLabels[textbook.processing_status]}
-                </p>
-                <Progress
-                  value={statusProgress[textbook.processing_status]}
-                  className="mt-3 h-2"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <ProcessingStatus
+          textbookId={textbook.id}
+          initialStatus={textbook.processing_status}
+        />
       )}
 
       {/* Failed Status */}

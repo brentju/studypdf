@@ -77,7 +77,8 @@ async def extract_pdf(request: ExtractionRequest):
             # Try using Marker for extraction (better quality)
             markdown, page_count, chapters = extract_with_marker(tmp_path)
         except Exception as marker_error:
-            print(f"Marker extraction failed, falling back to PyMuPDF: {marker_error}")
+            error_msg = str(marker_error)
+            print(f"Marker extraction failed, falling back to PyMuPDF: {error_msg}")
             # Fallback to PyMuPDF
             markdown, page_count, chapters = extract_with_pymupdf(tmp_path)
         finally:
@@ -106,7 +107,18 @@ def extract_with_marker(pdf_path: str) -> tuple[str, int, list[ChapterInfo]]:
         from marker.models import load_all_models
 
         # Load models (cached after first load)
-        models = load_all_models()
+        # This may fail due to model loading issues (e.g., KeyError: 'encoder')
+        try:
+            models = load_all_models()
+        except KeyError as e:
+            # Common issue with surya model configuration
+            if 'encoder' in str(e):
+                raise Exception(
+                    "Marker model loading failed: configuration error with order model. "
+                    "This is a known issue with some versions of the surya library. "
+                    "Falling back to PyMuPDF."
+                ) from e
+            raise
 
         # Convert PDF to markdown
         full_text, images, out_meta = convert_single_pdf(

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Trigger the processing pipeline
+    // Send event to Inngest to start background processing
     await inngest.send({
       name: "textbook/uploaded",
       data: {

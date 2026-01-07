@@ -195,7 +195,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 # Claude API
 ANTHROPIC_API_KEY=
 
-# Inngest
+# Inngest (only needed for production - not required for local dev)
 INNGEST_EVENT_KEY=
 INNGEST_SIGNING_KEY=
 
@@ -205,6 +205,64 @@ PYTHON_SERVICE_URL=http://localhost:8000
 # OpenAI (embeddings)
 OPENAI_API_KEY=
 ```
+
+## Development Tips & Gotchas
+
+### Inngest Local Development
+- **No API keys needed locally** - The Inngest dev server handles everything without `INNGEST_EVENT_KEY` or `INNGEST_SIGNING_KEY`
+- Run with: `npx inngest-cli@latest dev`
+- Dashboard available at: `http://localhost:8288`
+- The dev server auto-discovers your app at `/api/inngest`
+- Check the **Runs** tab to debug function execution and see errors
+
+### Background Job Status Updates
+Server components only render once - they won't reflect background job progress. Use client components with polling for real-time status:
+
+```tsx
+// Pattern: Poll while processing, refresh on completion
+useEffect(() => {
+  if (status === "completed") return;
+
+  const interval = setInterval(async () => {
+    const { data } = await supabase.from("textbooks").select("processing_status")...
+    if (data.processing_status !== status) {
+      setStatus(data.processing_status);
+      if (data.processing_status === "completed") {
+        clearInterval(interval);
+        router.refresh(); // Refresh server component data
+      }
+    }
+  }, 2000);
+
+  return () => clearInterval(interval);
+}, [status]);
+```
+
+### Supabase TypeScript Quirks
+The generated types can be overly strict. Use type assertions for queries:
+
+```tsx
+// For selects with .single()
+const { data } = await supabase
+  .from("textbooks")
+  .select("*")
+  .eq("id", id)
+  .single() as { data: Textbook | null; error: Error | null };
+
+// For inserts (workaround for strict types)
+await supabase.from("chapters").insert(chapterData as never);
+```
+
+### Python PDF Service
+- Marker library may fail with `KeyError: 'encoder'` on some PDFs - the service falls back to PyMuPDF automatically
+- Run locally: `cd python && uvicorn main:app --reload`
+- Test extraction: `curl -X POST http://localhost:8000/extract -H "Content-Type: application/json" -d '{"pdf_url": "..."}'`
+
+### Running the Full Stack Locally
+1. Terminal 1: `npm run dev` (Next.js on port 3000)
+2. Terminal 2: `npx inngest-cli@latest dev` (Inngest on port 8288)
+3. Terminal 3: `cd python && uvicorn main:app --reload` (Python on port 8000)
+4. Supabase: Use cloud project or `supabase start` for local
 
 ## Deployment
 
