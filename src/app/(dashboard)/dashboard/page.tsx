@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { DeleteTextbookButton } from "./delete-textbook-button";
 import type { Database } from "@/types/database";
 
 type Textbook = Database["public"]["Tables"]["textbooks"]["Row"];
@@ -48,7 +49,7 @@ export default async function DashboardPage() {
 
       {/* Textbooks Grid */}
       {textbooks && textbooks.length > 0 ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {textbooks.map((textbook) => (
             <TextbookCard key={textbook.id} textbook={textbook} />
           ))}
@@ -89,13 +90,13 @@ function TextbookCard({
   );
 
   return (
-    <Link href={`/textbook/${textbook.id}`}>
-      <Card className="group border-border/50 bg-card/50 transition-all hover:border-primary/30 hover:bg-card cursor-pointer h-full">
-        <CardContent className="p-6">
-          {/* Cover placeholder */}
-          <div className="aspect-[3/4] mb-4 rounded-lg bg-secondary/50 flex items-center justify-center">
+    <Card className="group border-border/50 bg-card/50 transition-all hover:border-primary/30 hover:bg-card h-full">
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          {/* Small book icon */}
+          <div className="shrink-0 w-10 h-12 rounded bg-secondary/50 flex items-center justify-center">
             <svg
-              className="h-12 w-12 text-muted-foreground/50"
+              className="h-5 w-5 text-muted-foreground/50"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -109,32 +110,47 @@ function TextbookCard({
             </svg>
           </div>
 
-          {/* Title and author */}
-          <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2">
-            {textbook.title}
-          </h3>
-          {textbook.author && (
-            <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
-              {textbook.author}
-            </p>
-          )}
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <Link href={`/textbook/${textbook.id}`} className="block">
+              <h3 className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                {textbook.title}
+              </h3>
+              {textbook.author && (
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                  {textbook.author}
+                </p>
+              )}
+            </Link>
 
-          {/* Status */}
-          <div className="mt-4 space-y-2">
-            <Badge
-              variant="secondary"
-              className={statusColors[textbook.processing_status] || statusColors.pending}
-            >
-              {statusLabels[textbook.processing_status] || textbook.processing_status}
-            </Badge>
+            {/* Status and progress */}
+            <div className="mt-2 flex items-center gap-2">
+              <Badge
+                variant="secondary"
+                className={`text-xs ${statusColors[textbook.processing_status] || statusColors.pending}`}
+              >
+                {statusLabels[textbook.processing_status] || textbook.processing_status}
+              </Badge>
+              {textbook.total_pages && (
+                <span className="text-xs text-muted-foreground">
+                  {textbook.total_pages} pages
+                </span>
+              )}
+            </div>
 
             {isProcessing && (
-              <Progress value={33} className="h-1" />
+              <Progress value={33} className="h-1 mt-2" />
             )}
           </div>
-        </CardContent>
-      </Card>
-    </Link>
+
+          {/* Delete button */}
+          <DeleteTextbookButton
+            textbookId={textbook.id}
+            textbookTitle={textbook.title}
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -3,6 +3,14 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { chunkText, extractPageInfo, addPageNumbersToChunks } from "@/lib/rag/chunker";
 import { generateEmbeddings, formatEmbeddingForPgvector } from "@/lib/rag/embeddings";
+import { askClaudeJson } from "@/lib/claude/client";
+import {
+  EXERCISE_EXTRACTION_SYSTEM,
+  exerciseExtractionPrompt,
+  SOLUTION_GENERATION_SYSTEM,
+  solutionGenerationPrompt,
+} from "@/lib/claude/prompts";
+import { getExerciseContext } from "@/lib/rag/search";
 
 type TextbookUpdate = Database["public"]["Tables"]["textbooks"]["Update"];
 
@@ -256,7 +264,7 @@ export const generateEmbeddingsFunc = inngest.createFunction(
   }
 );
 
-// 4. Extract exercises from chapters
+// 4. Extract exercises from chapters using Claude
 export const extractExercises = inngest.createFunction(
   {
     id: "extract-exercises",
@@ -268,55 +276,113 @@ export const extractExercises = inngest.createFunction(
     const { textbookId } = event.data;
     const supabase = getSupabaseAdmin();
 
-    // Get chapters for this textbook
+    // Get chapters (without content - we'll fetch content per-chapter to avoid serialization issues)
     const chapters = await step.run("get-chapters", async () => {
-      const { data, error } = await supabase
+      const { data: chaptersData, error: chaptersError } = await supabase
         .from("chapters")
-        .select("*")
-        .eq("textbook_id", textbookId);
+        .select("id, chapter_number, title")
+        .eq("textbook_id", textbookId)
+        .order("chapter_number");
 
-      if (error) throw error;
-      return data as { id: string; chapter_number: number; title: string }[];
+      if (chaptersError) throw chaptersError;
+      return chaptersData as { id: string; chapter_number: number; title: string }[];
     });
 
-    // Create sample exercises for each chapter (MVP placeholder)
-    // Real implementation would use Claude API to extract exercises
-    const exerciseIds = await step.run("create-exercises", async () => {
-      const exercises = chapters.flatMap((chapter) => [
-        {
+    // Extract exercises using Claude (or fallback to placeholder)
+    const allExerciseIds: string[] = [];
+
+    for (const chapter of chapters) {
+      const exerciseIds = await step.run(`extract-exercises-chapter-${chapter.chapter_number}`, async () => {
+        // Fetch content directly in this step to avoid Inngest serialization limits
+        const { data: chunks } = await supabase
+          .from("content_chunks")
+          .select("content")
+          .eq("chapter_id", chapter.id)
+          .order("chunk_index");
+
+        const chapterContent = chunks?.map((c: { content: string }) => c.content).join("\n\n") || "";
+
+        let exercises: Array<{
+          exercise_number: string;
+          exercise_type: string;
+          question_text: string;
+          options?: Array<{ id: string; label: string; text: string }> | null;
+          difficulty: string;
+          topics: string[];
+          hints?: string[] | null;
+        }> = [];
+
+        // Try to extract with Claude if API key is available and content exists
+        if (process.env.ANTHROPIC_API_KEY && chapterContent.length > 100) {
+          try {
+            console.log(`Extracting exercises from chapter ${chapter.chapter_number} (${chapterContent.length} chars)`);
+            const result = await askClaudeJson<{ exercises: typeof exercises }>(
+              exerciseExtractionPrompt(chapter.title, chapterContent.slice(0, 15000)), // Limit content size
+              {
+                model: "fast",
+                system: EXERCISE_EXTRACTION_SYSTEM,
+                maxTokens: 4096,
+              }
+            );
+            exercises = result.exercises || [];
+            console.log(`Claude found ${exercises.length} exercises in chapter ${chapter.chapter_number}`);
+          } catch (error) {
+            console.error(`Claude extraction failed for chapter ${chapter.chapter_number}:`, error);
+          }
+        } else {
+          console.log(`Skipping Claude: API key set: ${!!process.env.ANTHROPIC_API_KEY}, content length: ${chapterContent.length}`);
+        }
+
+        // Fallback: create placeholder exercises if Claude didn't find any
+        if (exercises.length === 0) {
+          exercises = [
+            {
+              exercise_number: `${chapter.chapter_number}.1`,
+              exercise_type: "short_answer",
+              question_text: `What are the main concepts covered in "${chapter.title}"?`,
+              difficulty: "easy",
+              topics: ["comprehension"],
+            },
+            {
+              exercise_number: `${chapter.chapter_number}.2`,
+              exercise_type: "multiple_choice",
+              question_text: `Which of the following best describes the purpose of "${chapter.title}"?`,
+              options: [
+                { id: "a", label: "A", text: "To introduce fundamental concepts" },
+                { id: "b", label: "B", text: "To provide advanced techniques" },
+                { id: "c", label: "C", text: "To summarize previous material" },
+                { id: "d", label: "D", text: "To present case studies" },
+              ],
+              difficulty: "medium",
+              topics: ["understanding"],
+            },
+          ];
+        }
+
+        // Save exercises to database
+        const exerciseRecords = exercises.map((ex) => ({
           textbook_id: textbookId,
           chapter_id: chapter.id,
-          exercise_number: `${chapter.chapter_number}.1`,
-          exercise_type: "short_answer",
-          question_text: `What are the main concepts covered in ${chapter.title}?`,
-          difficulty: "easy",
-          topics: ["comprehension"],
-        },
-        {
-          textbook_id: textbookId,
-          chapter_id: chapter.id,
-          exercise_number: `${chapter.chapter_number}.2`,
-          exercise_type: "multiple_choice",
-          question_text: `Which of the following best describes the purpose of ${chapter.title}?`,
-          options: JSON.stringify([
-            { id: "a", label: "A", text: "Option A" },
-            { id: "b", label: "B", text: "Option B" },
-            { id: "c", label: "C", text: "Option C" },
-            { id: "d", label: "D", text: "Option D" },
-          ]),
-          difficulty: "medium",
-          topics: ["understanding"],
-        },
-      ]);
+          exercise_number: ex.exercise_number || `${chapter.chapter_number}.${Math.random().toString(36).slice(2, 6)}`,
+          exercise_type: ex.exercise_type,
+          question_text: ex.question_text,
+          options: ex.options ? JSON.stringify(ex.options) : null,
+          difficulty: ex.difficulty || "medium",
+          topics: ex.topics || [],
+          hints: ex.hints || null,
+        }));
 
-      const { data, error } = await supabase
-        .from("exercises")
-        .insert(exercises as never)
-        .select("id");
+        const { data, error } = await supabase
+          .from("exercises")
+          .insert(exerciseRecords as never)
+          .select("id");
 
-      if (error) throw error;
-      return (data as { id: string }[]).map((e) => e.id);
-    });
+        if (error) throw error;
+        return (data as { id: string }[]).map((e) => e.id);
+      });
+
+      allExerciseIds.push(...exerciseIds);
+    }
 
     // Update status
     await step.run("update-status-generating-solutions", async () => {
@@ -328,15 +394,15 @@ export const extractExercises = inngest.createFunction(
       name: "exercises/extracted",
       data: {
         textbookId,
-        exerciseIds,
+        exerciseIds: allExerciseIds,
       },
     });
 
-    return { success: true, exerciseCount: exerciseIds.length };
+    return { success: true, exerciseCount: allExerciseIds.length };
   }
 );
 
-// 5. Generate solutions for exercises
+// 5. Generate solutions for exercises using Claude + RAG
 export const generateSolutions = inngest.createFunction(
   {
     id: "generate-solutions",
@@ -348,23 +414,101 @@ export const generateSolutions = inngest.createFunction(
     const { textbookId, exerciseIds } = event.data;
     const supabase = getSupabaseAdmin();
 
-    // Generate solutions for each exercise (MVP placeholder)
-    // Real implementation would use Claude API
-    const solutionCount = await step.run("create-solutions", async () => {
-      const solutions = exerciseIds.map((exerciseId: string) => ({
-        exercise_id: exerciseId,
-        solution_text: "This is a placeholder solution. The Claude API integration will generate detailed, step-by-step solutions for each exercise.",
-        approach: "Analysis and explanation",
-        explanation: "This solution demonstrates the key concepts and provides a clear path to the answer.",
-        model_used: "placeholder",
-        verified: false,
-      }));
+    // Get all exercises
+    const exercises = await step.run("get-exercises", async () => {
+      const { data, error } = await supabase
+        .from("exercises")
+        .select("*")
+        .in("id", exerciseIds);
 
-      const { error } = await supabase.from("solutions").insert(solutions as never);
       if (error) throw error;
-
-      return solutions.length;
+      return data as Array<{
+        id: string;
+        question_text: string;
+        exercise_type: string;
+        options: string | null;
+      }>;
     });
+
+    // Generate solutions for each exercise
+    let solutionCount = 0;
+
+    // Process in batches to avoid overwhelming the API
+    const batchSize = 5;
+    for (let i = 0; i < exercises.length; i += batchSize) {
+      const batch = exercises.slice(i, i + batchSize);
+
+      await step.run(`generate-solutions-batch-${i}`, async () => {
+        const solutions = await Promise.all(
+          batch.map(async (exercise) => {
+            let solutionData = {
+              approach: "Analysis and explanation",
+              steps: [] as Array<{ step_number: number; description: string; content: string; explanation: string }>,
+              final_answer: "See explanation above.",
+              tips: [] as string[],
+              related_concepts: [] as string[],
+            };
+
+            // Try to generate with Claude if API key is available
+            if (process.env.ANTHROPIC_API_KEY) {
+              try {
+                // Get relevant context from RAG
+                let context = "";
+                try {
+                  context = await getExerciseContext(exercise.id, exercise.question_text);
+                } catch (ragError) {
+                  console.warn("RAG context retrieval failed:", ragError);
+                }
+
+                // Generate solution with Claude
+                solutionData = await askClaudeJson<typeof solutionData>(
+                  solutionGenerationPrompt(
+                    exercise.question_text,
+                    exercise.exercise_type,
+                    exercise.options,
+                    context
+                  ),
+                  {
+                    model: "smart",
+                    system: SOLUTION_GENERATION_SYSTEM,
+                    maxTokens: 2048,
+                  }
+                );
+              } catch (error) {
+                console.error(`Claude solution generation failed for exercise ${exercise.id}:`, error);
+              }
+            }
+
+            // Format solution for database
+            const stepsText = solutionData.steps
+              ?.map((s) => `**Step ${s.step_number}: ${s.description}**\n${s.content}\n_${s.explanation}_`)
+              .join("\n\n") || "";
+
+            const solutionText = [
+              `## Approach\n${solutionData.approach}`,
+              stepsText ? `## Solution\n${stepsText}` : "",
+              `## Answer\n${solutionData.final_answer}`,
+              solutionData.tips?.length ? `## Tips\n${solutionData.tips.map((t) => `- ${t}`).join("\n")}` : "",
+            ].filter(Boolean).join("\n\n");
+
+            return {
+              exercise_id: exercise.id,
+              solution_text: solutionText || "Solution pending - please check back later.",
+              approach: solutionData.approach,
+              explanation: solutionData.final_answer,
+              alternative_approaches: solutionData.steps || [], // Store steps in alternative_approaches
+              model_used: process.env.ANTHROPIC_API_KEY ? "claude-sonnet-4" : "placeholder",
+              verified: false,
+            };
+          })
+        );
+
+        const { error } = await supabase.from("solutions").insert(solutions as never);
+        if (error) throw error;
+
+        solutionCount += solutions.length;
+      });
+    }
 
     // Mark textbook as complete
     await step.run("mark-complete", async () => {
