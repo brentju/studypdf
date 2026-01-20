@@ -5,13 +5,16 @@ This FastAPI service handles PDF text extraction using Marker and PyMuPDF.
 It's designed to be called by the Inngest background jobs.
 """
 
+import os
+import tempfile
+from pathlib import Path
+
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import httpx
-import tempfile
-import os
-from pathlib import Path
+from langchain_pymupdf4llm import PyMuPDF4LLMLoader
+
 
 app = FastAPI(
     title="StudyPDF PDF Extractor",
@@ -33,17 +36,16 @@ class ExtractionRequest(BaseModel):
     pdf_url: str
 
 
-class ChapterInfo(BaseModel):
-    number: int
-    title: str
-    start_page: int | None = None
-    end_page: int | None = None
+class PageInfo(BaseModel):
+    page_number: int
+    page_content: str
 
 
 class ExtractionResponse(BaseModel):
-    markdown: str
+    textbook_title: str
     page_count: int
-    chapters: list[ChapterInfo]
+    pages: list[PageInfo]
+    markdown: str
 
 
 @app.get("/health")
@@ -73,23 +75,13 @@ async def extract_pdf(request: ExtractionRequest):
             tmp_file.write(response.content)
             tmp_path = tmp_file.name
 
-        try:
-            # Try using Marker for extraction (better quality)
-            markdown, page_count, chapters = extract_with_marker(tmp_path)
-        except Exception as marker_error:
-            error_msg = str(marker_error)
-            print(f"Marker extraction failed, falling back to PyMuPDF: {error_msg}")
-            # Fallback to PyMuPDF
-            markdown, page_count, chapters = extract_with_pymupdf(tmp_path)
-        finally:
-            # Clean up temp file
-            os.unlink(tmp_path)
+        # Extract using langchain pymupdf4llm
+        extraction_response = extract_with_langchain_pymupdf4llm(tmp_path)
+    
+        # Clean up temp file
+        os.unlink(tmp_path)
 
-        return ExtractionResponse(
-            markdown=markdown,
-            page_count=page_count,
-            chapters=chapters,
-        )
+        return extraction_response
 
     except httpx.HTTPError as e:
         raise HTTPException(status_code=400, detail=f"Failed to download PDF: {str(e)}")
@@ -97,126 +89,19 @@ async def extract_pdf(request: ExtractionRequest):
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 
 
-def extract_with_marker(pdf_path: str) -> tuple[str, int, list[ChapterInfo]]:
+def extract_with_langchain_pymupdf4llm(pdf_path: str) -> ExtractionResponse:
     """
-    Extract PDF content using Marker library.
-    Marker provides high-quality markdown output with good structure preservation.
+    Extract PDF content using langchain pymupdf4ll library.
     """
-    try:
-        from marker.convert import convert_single_pdf
-        from marker.models import load_all_models
-
-        # Load models (cached after first load)
-        # This may fail due to model loading issues (e.g., KeyError: 'encoder')
-        try:
-            models = load_all_models()
-        except KeyError as e:
-            # Common issue with surya model configuration
-            if 'encoder' in str(e):
-                raise Exception(
-                    "Marker model loading failed: configuration error with order model. "
-                    "This is a known issue with some versions of the surya library. "
-                    "Falling back to PyMuPDF."
-                ) from e
-            raise
-
-        # Convert PDF to markdown
-        full_text, images, out_meta = convert_single_pdf(
-            pdf_path,
-            models,
-            max_pages=None,
-            parallel_factor=1,
-        )
-
-        # Extract page count from metadata
-        page_count = out_meta.get("pages", 0)
-
-        # Parse chapters from markdown
-        chapters = parse_chapters_from_markdown(full_text)
-
-        return full_text, page_count, chapters
-
-    except ImportError:
-        raise Exception("Marker library not properly installed")
-
-
-def extract_with_pymupdf(pdf_path: str) -> tuple[str, int, list[ChapterInfo]]:
-    """
-    Fallback extraction using PyMuPDF.
-    Simpler but faster extraction method.
-    """
-    import fitz  # PyMuPDF
-
-    doc = fitz.open(pdf_path)
-    page_count = len(doc)
-
-    # Extract text from all pages
-    full_text_parts = []
-    for page_num, page in enumerate(doc):
-        text = page.get_text("text")
-        full_text_parts.append(f"<!-- Page {page_num + 1} -->\n{text}")
-
-    full_text = "\n\n".join(full_text_parts)
-
-    # Try to extract TOC for chapter info
-    toc = doc.get_toc()
-    chapters = []
-
-    for i, entry in enumerate(toc):
-        level, title, page = entry
-        if level == 1:  # Only top-level entries as chapters
-            chapters.append(ChapterInfo(
-                number=len(chapters) + 1,
-                title=title,
-                start_page=page,
-            ))
-
-    # If no TOC, try to detect chapters from text
-    if not chapters:
-        chapters = parse_chapters_from_markdown(full_text)
-
-    doc.close()
-
-    return full_text, page_count, chapters
-
-
-def parse_chapters_from_markdown(text: str) -> list[ChapterInfo]:
-    """
-    Parse chapter structure from markdown/text content.
-    Looks for common chapter patterns.
-    """
-    import re
-
-    chapters = []
-
-    # Common chapter patterns
-    patterns = [
-        r'^#{1,2}\s*Chapter\s+(\d+)[:\s]*(.+)$',  # # Chapter 1: Title
-        r'^#{1,2}\s*(\d+)[.\s]+(.+)$',  # # 1. Title
-        r'^Chapter\s+(\d+)[:\s]*(.+)$',  # Chapter 1: Title
-        r'^CHAPTER\s+(\d+)[:\s]*(.+)$',  # CHAPTER 1: Title
-    ]
-
-    for pattern in patterns:
-        matches = re.findall(pattern, text, re.MULTILINE | re.IGNORECASE)
-        if matches:
-            for match in matches:
-                try:
-                    chapter_num = int(match[0])
-                    title = match[1].strip()
-                    chapters.append(ChapterInfo(
-                        number=chapter_num,
-                        title=title,
-                    ))
-                except (ValueError, IndexError):
-                    continue
-            break  # Use first pattern that finds chapters
-
-    # If still no chapters, create a default
-    if not chapters:
-        chapters = [ChapterInfo(number=1, title="Main Content")]
-
-    return chapters
+    # TODO: come back and increase error handling to avoid crashes
+    loader = PyMuPDF4LLMLoader(pdf_path)
+    docs = loader.load()
+    pages = [PageInfo(page_number=page.metadata.get('page'), page_content=page.page_content) for page in docs]
+    page_count = docs[0].metadata.get('total_pages', 0)
+    full_text = "\n\n".join([f"--- PAGE: {doc.metadata.get('page')} --- \n\n" + doc.page_content for doc in docs])
+    # TODO: come back and replace unknown title with extraction from pdf path
+    textbook_title = docs[0].metadata.get('title', 'Unknown Title')
+    return ExtractionResponse(textbook_title=textbook_title, page_count=page_count, pages=pages, markdown=full_text)
 
 
 if __name__ == "__main__":
