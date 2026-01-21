@@ -124,10 +124,10 @@ export default function UploadPage() {
       setUploadProgress(90);
 
       // Trigger processing pipeline
-      await fetch("/api/process-textbook", {
+      await fetch("/api/process-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ textbookId: textbook.id }),
+        body: JSON.stringify({ documentId: textbook.id }),
       });
 
       setUploadProgress(100);

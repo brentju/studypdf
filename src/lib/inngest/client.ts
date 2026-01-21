@@ -7,52 +7,13 @@ export const inngest = new Inngest({
 });
 
 // Event types
-export type TextbookUploadedEvent = {
-  name: "textbook/uploaded";
+export type DocumentUploadedEvent = {
+  name: "document/uploaded";
   data: {
-    textbookId: string;
-    pdfUrl: string;
+    documentId: string;
+    documentUrl: string;
     userId: string;
   };
 };
 
-export type TextbookExtractedEvent = {
-  name: "textbook/extracted";
-  data: {
-    textbookId: string;
-    markdown: string;
-    pageCount: number;
-  };
-};
-
-export type TextbookStructuredEvent = {
-  name: "textbook/structured";
-  data: {
-    textbookId: string;
-    chapterIds: string[];
-    markdown: string; // Full text content for chunking
-  };
-};
-
-export type TextbookEmbeddedEvent = {
-  name: "textbook/embedded";
-  data: {
-    textbookId: string;
-    chunkCount: number;
-  };
-};
-
-export type ExercisesExtractedEvent = {
-  name: "exercises/extracted";
-  data: {
-    textbookId: string;
-    exerciseIds: string[];
-  };
-};
-
-export type Events =
-  | TextbookUploadedEvent
-  | TextbookExtractedEvent
-  | TextbookStructuredEvent
-  | TextbookEmbeddedEvent
-  | ExercisesExtractedEvent;
+export type Events = DocumentUploadedEvent;

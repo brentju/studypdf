@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 const statusLabels: Record<string, string> = {
   pending: "Waiting to start",
   uploading: "Uploading PDF",
+  processing: "Processing document",
   extracting: "Extracting text from PDF",
   structuring: "Organizing chapters",
   embedding: "Creating search index",
@@ -21,6 +22,7 @@ const statusLabels: Record<string, string> = {
 const statusProgress: Record<string, number> = {
   pending: 0,
   uploading: 10,
+  processing: 50,
   extracting: 25,
   structuring: 40,
   embedding: 55,

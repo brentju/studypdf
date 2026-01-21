@@ -1,25 +1,27 @@
-"""
-StudyPDF - PDF Extraction Service
-
-This FastAPI service handles PDF text extraction using Marker and PyMuPDF.
-It's designed to be called by the Inngest background jobs.
-"""
-
 import os
 import tempfile
-from pathlib import Path
+from typing import List
 
 import httpx
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from langchain_pymupdf4llm import PyMuPDF4LLMLoader
+from supabase import Client, create_client
 
+from langchain_community.vectorstores import SupabaseVectorStore
+from langchain_openai import OpenAIEmbeddings
+from langchain_pymupdf4llm import PyMuPDF4LLMLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+
+# Load environment variables
+load_dotenv("../.env.local")
 
 app = FastAPI(
-    title="StudyPDF PDF Extractor",
-    description="PDF text extraction service for StudyPDF",
-    version="0.1.0",
+    title="StudyPDF Processing Service",
+    description="Complete PDF processing and RAG pipeline for StudyPDF",
+    version="0.2.0",
 )
 
 # CORS for development
@@ -31,77 +33,136 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Supabase Client (Singleton)
+supabase: Client = create_client(
+    os.getenv("NEXT_PUBLIC_SUPABASE_URL", ""),
+    os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+)
 
-class ExtractionRequest(BaseModel):
-    pdf_url: str
+# Embeddings Model (Singleton)
+embeddings_model = OpenAIEmbeddings()
+
+# LangChain Text Splitter (Singleton)
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+
+# Supabase Vector Store (Singleton)
+vector_store = SupabaseVectorStore(
+            embedding=embeddings_model,
+            client=supabase,
+            table_name="documents",
+            query_name="match_documents",
+        )
 
 
-class PageInfo(BaseModel):
-    page_number: int
-    page_content: str
+class ProcessRequest(BaseModel):
+    document_id: str
+    document_url: str
 
 
-class ExtractionResponse(BaseModel):
-    textbook_title: str
-    page_count: int
-    pages: list[PageInfo]
-    markdown: str
+class ProcessResponse(BaseModel):
+    document_id: str
+    success: bool
+    chunk_count: int
 
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+def sanitize_text(text: str) -> str:
+    """
+    Remove null bytes for PostgreSQL compatibility.
+
+    PostgreSQL does not support null bytes in TEXT fields.
+    See: https://github.com/langchain-ai/langchain/issues/26033
+    """
+    return text.replace('\x00', '')
+
+
+async def process_document_pipeline(
+    process_request: ProcessRequest,
+) -> ProcessResponse:
+    """
+    Complete pipeline: Extract -> Parse -> Chunk -> Embed -> Store
+    """
+
+    # TODO: Eventually support other document types as well
+
+    # Step 1: Download PDF
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.get(process_request.document_url, follow_redirects=True)
+        response.raise_for_status()
+
+    # Save to temp file
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
+        tmp_file.write(response.content)
+        tmp_path = tmp_file.name
+
+    try:
+
+        # TODO create a factory or something that takes in the document path and decides which extraction method to use based on file type
+        # and returns a list of documents
+        # Step 2: Extract PDF text
+
+        loader = PyMuPDF4LLMLoader(tmp_path)
+        docs = loader.load()
+
+        # Chunk documents
+        chunks = text_splitter.split_documents(docs)
+
+        # Sanitize chunks to remove null bytes (PostgreSQL requirement)
+        # Also add metadata for document_id and chunk_index for future retrieval from DB
+        for i, chunk in enumerate(chunks):
+            chunk.page_content = sanitize_text(chunk.page_content)
+            chunk.metadata['document_id'] = process_request.document_id
+            chunk.metadata['chunk_index'] = i
+
+        # Step 3: Store in Supabase Vector Store
+        vector_store.add_documents(chunks)
+
+        return ProcessResponse(
+            success=True,
+            document_id=process_request.document_id,
+            chunk_count=len(chunks)
+        )
+
+    finally:
+        # Clean up temp file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+# ============================================================================
+# API Endpoints
+# ============================================================================
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "service": "pdf-extractor"}
+    return {"status": "healthy", "service": "pdf-processor"}
 
 
-@app.post("/extract", response_model=ExtractionResponse)
-async def extract_pdf(request: ExtractionRequest):
+# TODO: turn this into a factory of some kind so we can use different document types
+@app.post("/process", response_model=ProcessResponse)
+async def process_document(request: ProcessRequest):
     """
-    Extract text and structure from a PDF file.
-
-    Downloads the PDF from the provided URL and extracts:
-    - Full text as markdown
-    - Page count
-    - Chapter structure (if detectable)
+    Complete RAG pipeline:
+    1. Extract PDF text
+    2. Chunk text with LangChain
+    3. Generate embeddings with OpenAI
+    4. Store everything in Supabase
     """
     try:
-        # Download PDF to temp file
-        async with httpx.AsyncClient() as client:
-            response = await client.get(request.pdf_url, follow_redirects=True)
-            response.raise_for_status()
+        result = await process_document_pipeline(
+            process_request=request,
+        )
+        return result
 
-        # Save to temporary file
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
-            tmp_file.write(response.content)
-            tmp_path = tmp_file.name
-
-        # Extract using langchain pymupdf4llm
-        extraction_response = extract_with_langchain_pymupdf4llm(tmp_path)
-    
-        # Clean up temp file
-        os.unlink(tmp_path)
-
-        return extraction_response
-
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=400, detail=f"Failed to download PDF: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
-
-
-def extract_with_langchain_pymupdf4llm(pdf_path: str) -> ExtractionResponse:
-    """
-    Extract PDF content using langchain pymupdf4ll library.
-    """
-    # TODO: come back and increase error handling to avoid crashes
-    loader = PyMuPDF4LLMLoader(pdf_path)
-    docs = loader.load()
-    pages = [PageInfo(page_number=page.metadata.get('page'), page_content=page.page_content) for page in docs]
-    page_count = docs[0].metadata.get('total_pages', 0)
-    full_text = "\n\n".join([f"--- PAGE: {doc.metadata.get('page')} --- \n\n" + doc.page_content for doc in docs])
-    # TODO: come back and replace unknown title with extraction from pdf path
-    textbook_title = docs[0].metadata.get('title', 'Unknown Title')
-    return ExtractionResponse(textbook_title=textbook_title, page_count=page_count, pages=pages, markdown=full_text)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Processing failed: {str(e)}"
+        )
 
 
 if __name__ == "__main__":

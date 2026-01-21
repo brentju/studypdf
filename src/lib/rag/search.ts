@@ -6,7 +6,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
-import { generateEmbedding } from "./embeddings";
+// import { generateEmbedding } from "./embeddings";
 
 type ContentChunk = Database["public"]["Tables"]["content_chunks"]["Row"];
 
@@ -47,13 +47,13 @@ export async function searchContent(
   const supabase = getSupabaseAdmin();
 
   // Generate embedding for the query
-  const queryEmbedding = await generateEmbedding(query);
+  // const queryEmbedding = await generateEmbedding(query);
 
   // Build the RPC call for similarity search
   // This uses the pgvector <=> operator for cosine distance
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase.rpc as any)("match_content_chunks", {
-    query_embedding: queryEmbedding,
+    // query_embedding: queryEmbedding,
     match_threshold: threshold,
     match_count: limit,
     filter_textbook_id: textbookId || null,
