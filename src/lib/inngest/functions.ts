@@ -12,7 +12,7 @@ import {
 } from "@/lib/claude/prompts";
 import { getExerciseContext } from "@/lib/rag/search";
 
-type TextbookUpdate = Database["public"]["Tables"]["textbooks"]["Update"];
+type DocumentUpdate = Database["public"]["Tables"]["documents"]["Update"];
 
 // Create admin Supabase client for background jobs
 function getSupabaseAdmin() {
@@ -22,34 +22,34 @@ function getSupabaseAdmin() {
   );
 }
 
-// Helper to update textbook status
-async function updateTextbookStatus(
-  textbookId: string,
+// Helper to update document status
+async function updateDocumentStatus(
+  documentId: string,
   status: string,
-  additionalData?: Partial<TextbookUpdate>
+  additionalData?: Partial<DocumentUpdate>
 ) {
   const supabase = getSupabaseAdmin();
-  const updateData = { processing_status: status, ...additionalData } as TextbookUpdate;
+  const updateData = { processing_status: status, ...additionalData } as DocumentUpdate;
   await supabase
-    .from("textbooks")
+    .from("documents")
     .update(updateData as never)
-    .eq("id", textbookId);
+    .eq("id", documentId);
 }
 
-// 1. Process uploaded textbook - Extract text from PDF
-export const processTextbookUpload = inngest.createFunction(
+// 1. Process uploaded document - Extract text from PDF
+export const processDocumentUpload = inngest.createFunction(
   {
-    id: "process-textbook-upload",
-    name: "Process Textbook Upload",
+    id: "process-document-upload",
+    name: "Process Document Upload",
     retries: 3,
   },
-  { event: "textbook/uploaded" },
+  { event: "document/uploaded" },
   async ({ event, step }) => {
-    const { textbookId, pdfUrl } = event.data;
+    const { documentId, fileUrl } = event.data;
 
     // Update status to extracting
     await step.run("update-status-extracting", async () => {
-      await updateTextbookStatus(textbookId, "extracting");
+      await updateDocumentStatus(documentId, "extracting");
     });
 
     // Extract text from PDF using Python service
@@ -60,7 +60,7 @@ export const processTextbookUpload = inngest.createFunction(
         const response = await fetch(`${pythonServiceUrl}/extract`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pdf_url: pdfUrl }),
+          body: JSON.stringify({ pdf_url: fileUrl }),
         });
 
         if (!response.ok) {
@@ -72,7 +72,7 @@ export const processTextbookUpload = inngest.createFunction(
         // For now, return mock data if Python service is unavailable
         console.warn("Python service unavailable, using mock extraction:", error);
         return {
-          markdown: `# Sample Textbook\n\nThis is placeholder content. The Python PDF extraction service is not yet running.\n\n## Chapter 1: Introduction\n\nWelcome to this textbook.\n\n### Exercises\n\n1. What is the main topic of this chapter?\n2. Explain the key concepts in your own words.`,
+          markdown: `# Sample Document\n\nThis is placeholder content. The Python PDF extraction service is not yet running.\n\n## Chapter 1: Introduction\n\nWelcome to this document.\n\n### Exercises\n\n1. What is the main topic of this chapter?\n2. Explain the key concepts in your own words.`,
           page_count: 10,
           chapters: [
             { number: 1, title: "Introduction", start_page: 1, end_page: 10 }
@@ -83,35 +83,35 @@ export const processTextbookUpload = inngest.createFunction(
 
     // Update status and trigger next step
     await step.run("update-status-structuring", async () => {
-      await updateTextbookStatus(textbookId, "structuring", {
+      await updateDocumentStatus(documentId, "structuring", {
         total_pages: extractionResult.page_count,
       });
     });
 
     // Send event to trigger structure parsing
     await step.sendEvent("trigger-structure-parsing", {
-      name: "textbook/extracted",
+      name: "document/extracted",
       data: {
-        textbookId,
+        documentId,
         markdown: extractionResult.markdown,
         pageCount: extractionResult.page_count,
       },
     });
 
-    return { success: true, textbookId };
+    return { success: true, documentId };
   }
 );
 
 // 2. Parse structure - Create chapters and sections
-export const parseTextbookStructure = inngest.createFunction(
+export const parseDocumentStructure = inngest.createFunction(
   {
-    id: "parse-textbook-structure",
-    name: "Parse Textbook Structure",
+    id: "parse-document-structure",
+    name: "Parse Document Structure",
     retries: 3,
   },
-  { event: "textbook/extracted" },
+  { event: "document/extracted" },
   async ({ event, step }) => {
-    const { textbookId, markdown } = event.data;
+    const { documentId, markdown } = event.data;
     const supabase = getSupabaseAdmin();
 
     // Parse chapters from markdown using simple heuristics
@@ -136,7 +136,7 @@ export const parseTextbookStructure = inngest.createFunction(
     // Save chapters to database
     const savedChapters = await step.run("save-chapters", async () => {
       const chapterData = chapters.map((ch) => ({
-        textbook_id: textbookId,
+        document_id: documentId,
         chapter_number: ch.chapter_number,
         title: ch.title,
       }));
@@ -152,14 +152,14 @@ export const parseTextbookStructure = inngest.createFunction(
 
     // Update status
     await step.run("update-status-embedding", async () => {
-      await updateTextbookStatus(textbookId, "embedding");
+      await updateDocumentStatus(documentId, "embedding");
     });
 
     // Trigger embedding generation (pass markdown for chunking)
     await step.sendEvent("trigger-embedding", {
-      name: "textbook/structured",
+      name: "document/structured",
       data: {
-        textbookId,
+        documentId,
         chapterIds: savedChapters.map((ch) => ch.id),
         markdown, // Pass through for chunking
       },
@@ -176,9 +176,9 @@ export const generateEmbeddingsFunc = inngest.createFunction(
     name: "Generate Embeddings",
     retries: 3,
   },
-  { event: "textbook/structured" },
+  { event: "document/structured" },
   async ({ event, step }) => {
-    const { textbookId, chapterIds, markdown } = event.data;
+    const { documentId, chapterIds, markdown } = event.data;
     const supabase = getSupabaseAdmin();
 
     // Step 1: Chunk the text content
@@ -222,7 +222,7 @@ export const generateEmbeddingsFunc = inngest.createFunction(
       const firstChapterId = chapterIds[0];
 
       const chunkRecords = chunks.map((chunk, index) => ({
-        textbook_id: textbookId,
+        document_id: documentId,
         chapter_id: firstChapterId, // TODO: Improve chapter mapping
         content: chunk.content,
         chunk_index: chunk.index,
@@ -244,14 +244,14 @@ export const generateEmbeddingsFunc = inngest.createFunction(
 
     // Update status
     await step.run("update-status-extracting-exercises", async () => {
-      await updateTextbookStatus(textbookId, "extracting_exercises");
+      await updateDocumentStatus(documentId, "extracting_exercises");
     });
 
     // Trigger exercise extraction
     await step.sendEvent("trigger-exercise-extraction", {
-      name: "textbook/embedded",
+      name: "document/embedded",
       data: {
-        textbookId,
+        documentId,
         chunkCount,
       },
     });
@@ -271,9 +271,9 @@ export const extractExercises = inngest.createFunction(
     name: "Extract Exercises",
     retries: 3,
   },
-  { event: "textbook/embedded" },
+  { event: "document/embedded" },
   async ({ event, step }) => {
-    const { textbookId } = event.data;
+    const { documentId } = event.data;
     const supabase = getSupabaseAdmin();
 
     // Get chapters (without content - we'll fetch content per-chapter to avoid serialization issues)
@@ -281,7 +281,7 @@ export const extractExercises = inngest.createFunction(
       const { data: chaptersData, error: chaptersError } = await supabase
         .from("chapters")
         .select("id, chapter_number, title")
-        .eq("textbook_id", textbookId)
+        .eq("document_id", documentId)
         .order("chapter_number");
 
       if (chaptersError) throw chaptersError;
@@ -361,7 +361,7 @@ export const extractExercises = inngest.createFunction(
 
         // Save exercises to database
         const exerciseRecords = exercises.map((ex) => ({
-          textbook_id: textbookId,
+          document_id: documentId,
           chapter_id: chapter.id,
           exercise_number: ex.exercise_number || `${chapter.chapter_number}.${Math.random().toString(36).slice(2, 6)}`,
           exercise_type: ex.exercise_type,
@@ -386,14 +386,14 @@ export const extractExercises = inngest.createFunction(
 
     // Update status
     await step.run("update-status-generating-solutions", async () => {
-      await updateTextbookStatus(textbookId, "generating_solutions");
+      await updateDocumentStatus(documentId, "generating_solutions");
     });
 
     // Trigger solution generation
     await step.sendEvent("trigger-solution-generation", {
       name: "exercises/extracted",
       data: {
-        textbookId,
+        documentId,
         exerciseIds: allExerciseIds,
       },
     });
@@ -411,7 +411,7 @@ export const generateSolutions = inngest.createFunction(
   },
   { event: "exercises/extracted" },
   async ({ event, step }) => {
-    const { textbookId, exerciseIds } = event.data;
+    const { documentId, exerciseIds } = event.data;
     const supabase = getSupabaseAdmin();
 
     // Get all exercises
@@ -510,9 +510,9 @@ export const generateSolutions = inngest.createFunction(
       });
     }
 
-    // Mark textbook as complete
+    // Mark document as complete
     await step.run("mark-complete", async () => {
-      await updateTextbookStatus(textbookId, "completed");
+      await updateDocumentStatus(documentId, "completed");
     });
 
     return { success: true, solutionCount };
@@ -521,8 +521,8 @@ export const generateSolutions = inngest.createFunction(
 
 // Export all functions
 export const functions = [
-  processTextbookUpload,
-  parseTextbookStructure,
+  processDocumentUpload,
+  parseDocumentStructure,
   generateEmbeddingsFunc,
   extractExercises,
   generateSolutions,

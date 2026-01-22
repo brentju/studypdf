@@ -44,7 +44,7 @@ export default async function DashboardLayout({
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
               <Button variant="ghost" size="sm">
-                My Textbooks
+                My Documents
               </Button>
             </Link>
 

@@ -6,10 +6,12 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export type FileType = "pdf" | "doc" | "docx" | "ppt" | "pptx" | "image" | "code" | "text";
+
 export interface Database {
   public: {
     Tables: {
-      textbooks: {
+      documents: {
         Row: {
           id: string;
           user_id: string;
@@ -17,7 +19,8 @@ export interface Database {
           author: string | null;
           edition: string | null;
           isbn: string | null;
-          pdf_url: string;
+          file_url: string;
+          file_type: FileType;
           cover_url: string | null;
           processing_status: string;
           total_pages: number | null;
@@ -31,7 +34,8 @@ export interface Database {
           author?: string | null;
           edition?: string | null;
           isbn?: string | null;
-          pdf_url: string;
+          file_url: string;
+          file_type?: FileType;
           cover_url?: string | null;
           processing_status?: string;
           total_pages?: number | null;
@@ -45,7 +49,8 @@ export interface Database {
           author?: string | null;
           edition?: string | null;
           isbn?: string | null;
-          pdf_url?: string;
+          file_url?: string;
+          file_type?: FileType;
           cover_url?: string | null;
           processing_status?: string;
           total_pages?: number | null;
@@ -56,7 +61,7 @@ export interface Database {
       chapters: {
         Row: {
           id: string;
-          textbook_id: string;
+          document_id: string;
           chapter_number: number;
           title: string;
           start_page: number | null;
@@ -66,7 +71,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          textbook_id: string;
+          document_id: string;
           chapter_number: number;
           title: string;
           start_page?: number | null;
@@ -76,7 +81,7 @@ export interface Database {
         };
         Update: {
           id?: string;
-          textbook_id?: string;
+          document_id?: string;
           chapter_number?: number;
           title?: string;
           start_page?: number | null;
@@ -120,7 +125,7 @@ export interface Database {
       exercises: {
         Row: {
           id: string;
-          textbook_id: string;
+          document_id: string;
           chapter_id: string;
           section_id: string | null;
           exercise_number: string;
@@ -137,7 +142,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          textbook_id: string;
+          document_id: string;
           chapter_id: string;
           section_id?: string | null;
           exercise_number: string;
@@ -154,7 +159,7 @@ export interface Database {
         };
         Update: {
           id?: string;
-          textbook_id?: string;
+          document_id?: string;
           chapter_id?: string;
           section_id?: string | null;
           exercise_number?: string;
@@ -214,7 +219,7 @@ export interface Database {
       content_chunks: {
         Row: {
           id: string;
-          textbook_id: string;
+          document_id: string;
           chapter_id: string | null;
           section_id: string | null;
           content: string;
@@ -226,7 +231,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          textbook_id: string;
+          document_id: string;
           chapter_id?: string | null;
           section_id?: string | null;
           content: string;
@@ -238,7 +243,7 @@ export interface Database {
         };
         Update: {
           id?: string;
-          textbook_id?: string;
+          document_id?: string;
           chapter_id?: string | null;
           section_id?: string | null;
           content?: string;
@@ -349,13 +354,13 @@ export interface Database {
           query_embedding: number[];
           match_threshold: number;
           match_count: number;
-          filter_textbook_id?: string;
+          filter_document_id?: string;
         };
         Returns: {
           id: string;
           content: string;
           similarity: number;
-          textbook_id: string;
+          document_id: string;
           chapter_id: string | null;
           section_id: string | null;
           page_number: number | null;

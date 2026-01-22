@@ -3,20 +3,20 @@ import { createClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
 import type { Database } from "@/types/database";
 
-type Textbook = Database["public"]["Tables"]["textbooks"]["Row"];
+type Document = Database["public"]["Tables"]["documents"]["Row"];
 
 export async function POST(request: Request) {
   try {
-    const { textbookId } = await request.json();
+    const { documentId } = await request.json();
 
-    if (!textbookId) {
+    if (!documentId) {
       return NextResponse.json(
-        { error: "textbookId is required" },
+        { error: "documentId is required" },
         { status: 400 }
       );
     }
 
-    // Verify the textbook exists and belongs to the user
+    // Verify the document exists and belongs to the user
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -27,33 +27,41 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: textbook, error } = await supabase
-      .from("textbooks")
+    const { data: document, error } = await supabase
+      .from("documents")
       .select("*")
-      .eq("id", textbookId)
+      .eq("id", documentId)
       .eq("user_id", user.id)
-      .single() as { data: Textbook | null; error: Error | null };
+      .single() as { data: Document | null; error: Error | null };
 
-    if (error || !textbook) {
+    if (error || !document) {
       return NextResponse.json(
-        { error: "Textbook not found" },
+        { error: "Document not found" },
         { status: 404 }
+      );
+    }
+
+    // Only process PDFs
+    if (document.file_type !== "pdf") {
+      return NextResponse.json(
+        { error: "Only PDF documents can be processed" },
+        { status: 400 }
       );
     }
 
     // Send event to Inngest to start background processing
     await inngest.send({
-      name: "textbook/uploaded",
+      name: "document/uploaded",
       data: {
-        textbookId: textbook.id,
-        pdfUrl: textbook.pdf_url,
+        documentId: document.id,
+        fileUrl: document.file_url,
         userId: user.id,
       },
     });
 
-    return NextResponse.json({ success: true, textbookId });
+    return NextResponse.json({ success: true, documentId });
   } catch (error) {
-    console.error("Error triggering textbook processing:", error);
+    console.error("Error triggering document processing:", error);
     return NextResponse.json(
       { error: "Failed to start processing" },
       { status: 500 }

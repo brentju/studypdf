@@ -19,20 +19,23 @@ export type ProcessingStatus =
   | "completed"
   | "failed";
 
+export type FileType = "pdf" | "doc" | "docx" | "ppt" | "pptx" | "image" | "code" | "text";
+
 export interface User {
   id: string;
   email: string;
   created_at: string;
 }
 
-export interface Textbook {
+export interface Document {
   id: string;
   user_id: string;
   title: string;
   author?: string;
   edition?: string;
   isbn?: string;
-  pdf_url: string;
+  file_url: string;
+  file_type: FileType;
   cover_url?: string;
   processing_status: ProcessingStatus;
   total_pages?: number;
@@ -42,7 +45,7 @@ export interface Textbook {
 
 export interface Chapter {
   id: string;
-  textbook_id: string;
+  document_id: string;
   chapter_number: number;
   title: string;
   start_page?: number;
@@ -64,7 +67,7 @@ export interface Section {
 
 export interface Exercise {
   id: string;
-  textbook_id: string;
+  document_id: string;
   chapter_id: string;
   section_id?: string;
   exercise_number: string;
@@ -109,7 +112,7 @@ export interface AlternativeApproach {
 
 export interface ContentChunk {
   id: string;
-  textbook_id: string;
+  document_id: string;
   chapter_id?: string;
   section_id?: string;
   content: string;
@@ -188,7 +191,7 @@ export interface PaginatedResponse<T> {
 }
 
 // Form types
-export interface TextbookUploadForm {
+export interface DocumentUploadForm {
   title: string;
   author?: string;
   edition?: string;
@@ -204,7 +207,7 @@ export interface SubmissionForm {
 
 // Processing events
 export interface ProcessingEvent {
-  textbook_id: string;
+  document_id: string;
   status: ProcessingStatus;
   progress?: number;
   message?: string;

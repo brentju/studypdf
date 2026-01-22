@@ -52,5 +52,19 @@ END;
 $$;
 
 -- Grant execute permission to authenticated users
-GRANT EXECUTE ON FUNCTION match_content_chunks TO authenticated;
-GRANT EXECUTE ON FUNCTION match_content_chunks TO service_role;
+GRANT EXECUTE ON FUNCTION match_content_chunks(
+  vector(1536),
+  double precision,
+  integer,
+  uuid,
+  uuid
+) TO authenticated;
+
+GRANT EXECUTE ON FUNCTION match_content_chunks(
+  vector(1536),
+  double precision,
+  integer,
+  uuid,
+  uuid
+) TO service_role;
+

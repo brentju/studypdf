@@ -24,7 +24,7 @@ export interface SearchResult {
 }
 
 export interface SearchOptions {
-  textbookId?: string;
+  documentId?: string;
   chapterId?: string;
   limit?: number;
   threshold?: number; // Minimum similarity score (0-1)
@@ -38,7 +38,7 @@ export async function searchContent(
   options: SearchOptions = {}
 ): Promise<SearchResult[]> {
   const {
-    textbookId,
+    documentId,
     chapterId,
     limit = 5,
     threshold = 0.7,
@@ -56,7 +56,7 @@ export async function searchContent(
     query_embedding: queryEmbedding,
     match_threshold: threshold,
     match_count: limit,
-    filter_textbook_id: textbookId || null,
+    filter_document_id: documentId || null,
     filter_chapter_id: chapterId || null,
   }) as { data: Array<ContentChunk & { similarity: number }> | null; error: Error | null };
 
@@ -76,7 +76,7 @@ export async function searchContent(
 }
 
 /**
- * Get relevant context for an exercise from the textbook
+ * Get relevant context for an exercise from the document
  */
 export async function getExerciseContext(
   exerciseId: string,
@@ -84,12 +84,12 @@ export async function getExerciseContext(
 ): Promise<string> {
   const supabase = getSupabaseAdmin();
 
-  // Get the exercise to find its textbook and chapter
+  // Get the exercise to find its document and chapter
   const { data: exercise } = await supabase
     .from("exercises")
-    .select("textbook_id, chapter_id")
+    .select("document_id, chapter_id")
     .eq("id", exerciseId)
-    .single() as { data: { textbook_id: string; chapter_id: string } | null };
+    .single() as { data: { document_id: string; chapter_id: string } | null };
 
   if (!exercise) {
     return "";
@@ -97,20 +97,20 @@ export async function getExerciseContext(
 
   // Search for relevant content, prioritizing the same chapter
   const results = await searchContent(questionText, {
-    textbookId: exercise.textbook_id,
+    documentId: exercise.document_id,
     chapterId: exercise.chapter_id,
     limit: 3,
     threshold: 0.65,
   });
 
   if (results.length === 0) {
-    // Fallback: search across the whole textbook
-    const textbookResults = await searchContent(questionText, {
-      textbookId: exercise.textbook_id,
+    // Fallback: search across the whole document
+    const documentResults = await searchContent(questionText, {
+      documentId: exercise.document_id,
       limit: 3,
       threshold: 0.6,
     });
-    return formatContextForLLM(textbookResults);
+    return formatContextForLLM(documentResults);
   }
 
   return formatContextForLLM(results);

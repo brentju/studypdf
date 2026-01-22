@@ -10,14 +10,110 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import type { Database } from "@/types/database";
+import type { Database, FileType } from "@/types/database";
 
 type UploadState = "idle" | "selected" | "uploading" | "processing" | "complete" | "error";
-type TextbookInsert = Database["public"]["Tables"]["textbooks"]["Insert"];
-type TextbookRow = Database["public"]["Tables"]["textbooks"]["Row"];
+type DocumentInsert = Database["public"]["Tables"]["documents"]["Insert"];
+type DocumentRow = Database["public"]["Tables"]["documents"]["Row"];
+
+// Accepted file types configuration
+const ACCEPTED_FILE_TYPES = {
+  // Documents
+  "application/pdf": [".pdf"],
+  "application/msword": [".doc"],
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+  "application/vnd.ms-powerpoint": [".ppt"],
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+  // Images
+  "image/jpeg": [".jpg", ".jpeg"],
+  "image/png": [".png"],
+  "image/gif": [".gif"],
+  "image/webp": [".webp"],
+  // Text/Code
+  "text/plain": [".txt", ".md", ".csv"],
+  "text/javascript": [".js", ".jsx", ".ts", ".tsx"],
+  "text/x-python": [".py"],
+  "text/html": [".html", ".css"],
+  "application/json": [".json"],
+};
+
+// Map file extensions to our FileType
+function getFileType(filename: string): FileType {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+
+  if (ext === "pdf") return "pdf";
+  if (["doc", "docx"].includes(ext)) return "doc";
+  if (["ppt", "pptx"].includes(ext)) return "ppt";
+  if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) return "image";
+  if (["js", "jsx", "ts", "tsx", "py", "html", "css", "json"].includes(ext)) return "code";
+  if (["txt", "md", "csv"].includes(ext)) return "text";
+
+  return "text"; // Default fallback
+}
+
+// Get display name for file type
+function getFileTypeDisplay(fileType: FileType): string {
+  const displays: Record<FileType, string> = {
+    pdf: "PDF Document",
+    doc: "Word Document",
+    docx: "Word Document",
+    ppt: "Presentation",
+    pptx: "Presentation",
+    image: "Image",
+    code: "Code File",
+    text: "Text File",
+  };
+  return displays[fileType] || "Document";
+}
+
+// Get icon for file type
+function FileTypeIcon({ fileType }: { fileType: FileType }) {
+  if (fileType === "pdf") {
+    return (
+      <svg className="h-6 w-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    );
+  }
+  if (fileType === "doc" || fileType === "docx") {
+    return (
+      <svg className="h-6 w-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    );
+  }
+  if (fileType === "ppt" || fileType === "pptx") {
+    return (
+      <svg className="h-6 w-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+      </svg>
+    );
+  }
+  if (fileType === "image") {
+    return (
+      <svg className="h-6 w-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    );
+  }
+  if (fileType === "code") {
+    return (
+      <svg className="h-6 w-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+      </svg>
+    );
+  }
+  // Default text icon
+  return (
+    <svg className="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  );
+}
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
+  const [fileType, setFileType] = useState<FileType>("pdf");
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [uploadState, setUploadState] = useState<UploadState>("idle");
@@ -26,22 +122,23 @@ export default function UploadPage() {
   const router = useRouter();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    const pdfFile = acceptedFiles[0];
-    if (pdfFile) {
-      setFile(pdfFile);
+    const uploadedFile = acceptedFiles[0];
+    if (uploadedFile) {
+      setFile(uploadedFile);
       setUploadState("selected");
-      // Auto-fill title from filename
-      const fileName = pdfFile.name.replace(/\.pdf$/i, "");
+      // Auto-fill title from filename (remove extension)
+      const fileName = uploadedFile.name.replace(/\.[^/.]+$/, "");
       setTitle(fileName);
+      // Detect file type
+      const detectedType = getFileType(uploadedFile.name);
+      setFileType(detectedType);
       setError(null);
     }
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: {
-      "application/pdf": [".pdf"],
-    },
+    accept: ACCEPTED_FILE_TYPES,
     maxFiles: 1,
     maxSize: 500 * 1024 * 1024, // 500MB
     onDropRejected: (rejections) => {
@@ -49,7 +146,7 @@ export default function UploadPage() {
       if (rejection.errors[0]?.code === "file-too-large") {
         setError("File is too large. Maximum size is 500MB.");
       } else if (rejection.errors[0]?.code === "file-invalid-type") {
-        setError("Please upload a PDF file.");
+        setError("Unsupported file type. Please upload a PDF, Word doc, PowerPoint, image, or code file.");
       } else {
         setError("Failed to upload file. Please try again.");
       }
@@ -58,7 +155,7 @@ export default function UploadPage() {
 
   const handleUpload = async () => {
     if (!file || !title.trim()) {
-      setError("Please provide a title for the textbook.");
+      setError("Please provide a title for the document.");
       return;
     }
 
@@ -83,7 +180,7 @@ export default function UploadPage() {
       // Upload to Supabase Storage
       setUploadProgress(10);
       const { error: uploadError } = await supabase.storage
-        .from("textbooks")
+        .from("documents")
         .upload(fileName, file, {
           cacheControl: "3600",
           upsert: false,
@@ -97,45 +194,48 @@ export default function UploadPage() {
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
-        .from("textbooks")
+        .from("documents")
         .getPublicUrl(fileName);
 
       setUploadProgress(70);
 
-      // Create textbook record
-      const insertData: TextbookInsert = {
+      // Create document record
+      const insertData: DocumentInsert = {
         user_id: user.id,
         title: title.trim(),
         author: author.trim() || null,
-        pdf_url: publicUrl,
-        processing_status: "pending",
+        file_url: publicUrl,
+        file_type: fileType,
+        processing_status: fileType === "pdf" ? "pending" : "completed",
       };
 
-      const { data: textbook, error: dbError } = await supabase
-        .from("textbooks")
+      const { data: document, error: dbError } = await supabase
+        .from("documents")
         .insert(insertData as never)
         .select()
-        .single() as { data: TextbookRow | null; error: Error | null };
+        .single() as { data: DocumentRow | null; error: Error | null };
 
-      if (dbError || !textbook) {
-        throw new Error(dbError?.message || "Failed to create textbook record");
+      if (dbError || !document) {
+        throw new Error(dbError?.message || "Failed to create document record");
       }
 
       setUploadProgress(90);
 
-      // Trigger processing pipeline
-      await fetch("/api/process-textbook", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ textbookId: textbook.id }),
-      });
+      // Only trigger processing pipeline for PDFs
+      if (fileType === "pdf") {
+        await fetch("/api/process-document", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ documentId: document.id }),
+        });
+      }
 
       setUploadProgress(100);
       setUploadState("complete");
 
-      // Redirect to textbook page after short delay
+      // Redirect to document page after short delay
       setTimeout(() => {
-        router.push(`/textbook/${textbook.id}`);
+        router.push(`/document/${document.id}`);
       }, 1500);
 
     } catch (err) {
@@ -147,6 +247,7 @@ export default function UploadPage() {
 
   const resetUpload = () => {
     setFile(null);
+    setFileType("pdf");
     setTitle("");
     setAuthor("");
     setUploadState("idle");
@@ -173,18 +274,18 @@ export default function UploadPage() {
           </svg>
           Back to Dashboard
         </Link>
-        <h1 className="text-3xl font-bold text-foreground">Upload Textbook</h1>
+        <h1 className="text-3xl font-bold text-foreground">Upload Document</h1>
         <p className="text-muted-foreground mt-1">
-          Upload a PDF textbook to extract exercises and generate solutions
+          Upload PDFs, Word docs, images, code files, and more
         </p>
       </div>
 
       {/* Upload Card */}
       <Card className="border-border/50 bg-card/50">
         <CardHeader>
-          <CardTitle>PDF File</CardTitle>
+          <CardTitle>Select File</CardTitle>
           <CardDescription>
-            Drag and drop your textbook PDF or click to browse. Max size: 500MB.
+            Supported: PDF, Word, PowerPoint, images (JPG, PNG), code files, and text files. Max size: 500MB.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -218,11 +319,11 @@ export default function UploadPage() {
                   </svg>
                 </div>
                 {isDragActive ? (
-                  <p className="text-primary font-medium">Drop the PDF here...</p>
+                  <p className="text-primary font-medium">Drop the file here...</p>
                 ) : (
                   <>
                     <p className="text-foreground font-medium">
-                      Drag & drop your PDF here
+                      Drag & drop your file here
                     </p>
                     <p className="text-sm text-muted-foreground">
                       or click to browse files
@@ -236,26 +337,14 @@ export default function UploadPage() {
             <div className="rounded-lg border border-border bg-secondary/30 p-4">
               <div className="flex items-start gap-4">
                 <div className="rounded-lg bg-primary/10 p-3">
-                  <svg
-                    className="h-6 w-6 text-primary"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
+                  <FileTypeIcon fileType={fileType} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-foreground truncate">
                     {file?.name}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {file && formatFileSize(file.size)}
+                    {file && formatFileSize(file.size)} - {getFileTypeDisplay(fileType)}
                   </p>
                   {uploadState === "uploading" && (
                     <div className="mt-3">
@@ -294,7 +383,7 @@ export default function UploadPage() {
           {(uploadState === "selected" || uploadState === "error") && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="title">Textbook Title *</Label>
+                <Label htmlFor="title">Document Title *</Label>
                 <Input
                   id="title"
                   value={title}
@@ -328,7 +417,7 @@ export default function UploadPage() {
                 <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
-                Upload & Process
+                {fileType === "pdf" ? "Upload & Process" : "Upload"}
               </Button>
               <Button variant="outline" onClick={resetUpload}>
                 Cancel
@@ -348,24 +437,31 @@ export default function UploadPage() {
       <Card className="border-border/50 bg-secondary/30">
         <CardContent className="p-6">
           <h3 className="font-semibold text-foreground mb-3">What happens next?</h3>
-          <ol className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex items-start gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs text-primary font-medium">1</span>
-              <span>We&apos;ll extract the text and structure from your PDF</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs text-primary font-medium">2</span>
-              <span>AI will identify chapters, sections, and exercises</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs text-primary font-medium">3</span>
-              <span>Solutions will be generated for each exercise</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs text-primary font-medium">4</span>
-              <span>You can start practicing with instant feedback!</span>
-            </li>
-          </ol>
+          {fileType === "pdf" ? (
+            <ol className="space-y-2 text-sm text-muted-foreground">
+              <li className="flex items-start gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs text-primary font-medium">1</span>
+                <span>We&apos;ll extract the text and structure from your PDF</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs text-primary font-medium">2</span>
+                <span>AI will identify chapters, sections, and exercises</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs text-primary font-medium">3</span>
+                <span>Solutions will be generated for each exercise</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs text-primary font-medium">4</span>
+                <span>You can start practicing with instant feedback!</span>
+              </li>
+            </ol>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Your {getFileTypeDisplay(fileType).toLowerCase()} will be uploaded and stored securely.
+              You can view and download it anytime from your dashboard.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -7,37 +7,37 @@ export const inngest = new Inngest({
 });
 
 // Event types
-export type TextbookUploadedEvent = {
-  name: "textbook/uploaded";
+export type DocumentUploadedEvent = {
+  name: "document/uploaded";
   data: {
-    textbookId: string;
-    pdfUrl: string;
+    documentId: string;
+    fileUrl: string;
     userId: string;
   };
 };
 
-export type TextbookExtractedEvent = {
-  name: "textbook/extracted";
+export type DocumentExtractedEvent = {
+  name: "document/extracted";
   data: {
-    textbookId: string;
+    documentId: string;
     markdown: string;
     pageCount: number;
   };
 };
 
-export type TextbookStructuredEvent = {
-  name: "textbook/structured";
+export type DocumentStructuredEvent = {
+  name: "document/structured";
   data: {
-    textbookId: string;
+    documentId: string;
     chapterIds: string[];
     markdown: string; // Full text content for chunking
   };
 };
 
-export type TextbookEmbeddedEvent = {
-  name: "textbook/embedded";
+export type DocumentEmbeddedEvent = {
+  name: "document/embedded";
   data: {
-    textbookId: string;
+    documentId: string;
     chunkCount: number;
   };
 };
@@ -45,14 +45,14 @@ export type TextbookEmbeddedEvent = {
 export type ExercisesExtractedEvent = {
   name: "exercises/extracted";
   data: {
-    textbookId: string;
+    documentId: string;
     exerciseIds: string[];
   };
 };
 
 export type Events =
-  | TextbookUploadedEvent
-  | TextbookExtractedEvent
-  | TextbookStructuredEvent
-  | TextbookEmbeddedEvent
+  | DocumentUploadedEvent
+  | DocumentExtractedEvent
+  | DocumentStructuredEvent
+  | DocumentEmbeddedEvent
   | ExercisesExtractedEvent;

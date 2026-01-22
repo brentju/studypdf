@@ -8,11 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProcessingStatus } from "./processing-status";
 import type { Database } from "@/types/database";
 
-type Textbook = Database["public"]["Tables"]["textbooks"]["Row"];
+type Document = Database["public"]["Tables"]["documents"]["Row"];
 type Chapter = Database["public"]["Tables"]["chapters"]["Row"];
 type Exercise = Database["public"]["Tables"]["exercises"]["Row"];
 
-export default async function TextbookPage({
+export default async function DocumentPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -20,29 +20,31 @@ export default async function TextbookPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  // Fetch textbook with chapters and exercises
-  const { data: textbook, error } = await supabase
-    .from("textbooks")
+  // Fetch document with chapters and exercises
+  const { data: document, error } = await supabase
+    .from("documents")
     .select("*")
     .eq("id", id)
-    .single() as { data: Textbook | null; error: unknown };
+    .single() as { data: Document | null; error: unknown };
 
-  if (error || !textbook) {
+  if (error || !document) {
     notFound();
   }
+
+  const isPdf = document.file_type === "pdf";
 
   const { data: chapters } = await supabase
     .from("chapters")
     .select("*")
-    .eq("textbook_id", id)
+    .eq("document_id", id)
     .order("chapter_number") as { data: Chapter[] | null };
 
   const { data: exercises } = await supabase
     .from("exercises")
     .select("*")
-    .eq("textbook_id", id) as { data: Exercise[] | null };
+    .eq("document_id", id) as { data: Exercise[] | null };
 
-  const isProcessing = !["completed", "failed"].includes(textbook.processing_status);
+  const isProcessing = isPdf && !["completed", "failed"].includes(document.processing_status);
 
   // Group exercises by chapter
   const exercisesByChapter = exercises?.reduce((acc, exercise) => {
@@ -66,12 +68,12 @@ export default async function TextbookPage({
             </svg>
             Back to Dashboard
           </Link>
-          <h1 className="text-3xl font-bold text-foreground">{textbook.title}</h1>
-          {textbook.author && (
-            <p className="text-muted-foreground mt-1">by {textbook.author}</p>
+          <h1 className="text-3xl font-bold text-foreground">{document.title}</h1>
+          {document.author && (
+            <p className="text-muted-foreground mt-1">by {document.author}</p>
           )}
         </div>
-        {textbook.processing_status === "completed" && (
+        {isPdf && document.processing_status === "completed" && (
           <Button>
             <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -80,18 +82,28 @@ export default async function TextbookPage({
             Start Practicing
           </Button>
         )}
+        {!isPdf && (
+          <a href={document.file_url} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline">
+              <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download
+            </Button>
+          </a>
+        )}
       </div>
 
-      {/* Processing Status */}
+      {/* Processing Status (PDFs only) */}
       {isProcessing && (
         <ProcessingStatus
-          textbookId={textbook.id}
-          initialStatus={textbook.processing_status}
+          documentId={document.id}
+          initialStatus={document.processing_status}
         />
       )}
 
       {/* Failed Status */}
-      {textbook.processing_status === "failed" && (
+      {isPdf && document.processing_status === "failed" && (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
@@ -103,7 +115,7 @@ export default async function TextbookPage({
               <div className="flex-1">
                 <h3 className="font-semibold text-foreground">Processing failed</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  There was an error processing your textbook. Please try uploading again.
+                  There was an error processing your document. Please try uploading again.
                 </p>
               </div>
               <Button variant="outline">Retry Processing</Button>
@@ -112,8 +124,29 @@ export default async function TextbookPage({
         </Card>
       )}
 
-      {/* Completed - Show content */}
-      {textbook.processing_status === "completed" && (
+      {/* Non-PDF Document Info */}
+      {!isPdf && (
+        <Card className="border-border/50 bg-card/50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="rounded-full bg-green-500/10 p-3">
+                <svg className="h-6 w-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Document uploaded</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  This file has been uploaded and stored securely. Click the download button to access it.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Completed PDF - Show content */}
+      {isPdf && document.processing_status === "completed" && (
         <Tabs defaultValue="chapters" className="space-y-6">
           <TabsList>
             <TabsTrigger value="chapters">
@@ -136,7 +169,7 @@ export default async function TextbookPage({
             ) : (
               <Card className="border-border/50 bg-card/50">
                 <CardContent className="py-12 text-center">
-                  <p className="text-muted-foreground">No chapters found in this textbook.</p>
+                  <p className="text-muted-foreground">No chapters found in this document.</p>
                 </CardContent>
               </Card>
             )}
@@ -152,7 +185,7 @@ export default async function TextbookPage({
             ) : (
               <Card className="border-border/50 bg-card/50">
                 <CardContent className="py-12 text-center">
-                  <p className="text-muted-foreground">No exercises found in this textbook.</p>
+                  <p className="text-muted-foreground">No exercises found in this document.</p>
                 </CardContent>
               </Card>
             )}
@@ -160,8 +193,8 @@ export default async function TextbookPage({
         </Tabs>
       )}
 
-      {/* Stats */}
-      {textbook.processing_status === "completed" && (
+      {/* Stats (PDFs only) */}
+      {isPdf && document.processing_status === "completed" && (
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="border-border/50 bg-card/50">
             <CardContent className="p-6">
@@ -177,7 +210,7 @@ export default async function TextbookPage({
           </Card>
           <Card className="border-border/50 bg-card/50">
             <CardContent className="p-6">
-              <div className="text-3xl font-bold text-accent-pink">{textbook.total_pages || "—"}</div>
+              <div className="text-3xl font-bold text-accent-pink">{document.total_pages || "—"}</div>
               <p className="text-sm text-muted-foreground">Pages</p>
             </CardContent>
           </Card>

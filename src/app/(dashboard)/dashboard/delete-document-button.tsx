@@ -16,15 +16,15 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-interface DeleteTextbookButtonProps {
-  textbookId: string;
-  textbookTitle: string;
+interface DeleteDocumentButtonProps {
+  documentId: string;
+  documentTitle: string;
 }
 
-export function DeleteTextbookButton({
-  textbookId,
-  textbookTitle,
-}: DeleteTextbookButtonProps) {
+export function DeleteDocumentButton({
+  documentId,
+  documentTitle,
+}: DeleteDocumentButtonProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
   const supabase = createClient();
@@ -33,18 +33,18 @@ export function DeleteTextbookButton({
     setIsDeleting(true);
 
     try {
-      // Delete the textbook (cascade will handle related records)
+      // Delete the document (cascade will handle related records)
       const { error } = await supabase
-        .from("textbooks")
+        .from("documents")
         .delete()
-        .eq("id", textbookId);
+        .eq("id", documentId);
 
       if (error) throw error;
 
       router.refresh();
     } catch (error) {
-      console.error("Failed to delete textbook:", error);
-      alert("Failed to delete textbook. Please try again.");
+      console.error("Failed to delete document:", error);
+      alert("Failed to delete document. Please try again.");
     } finally {
       setIsDeleting(false);
     }
@@ -71,10 +71,10 @@ export function DeleteTextbookButton({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Textbook</AlertDialogTitle>
+          <AlertDialogTitle>Delete Document</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete &quot;{textbookTitle}&quot;? This will permanently
-            remove the textbook and all its exercises, solutions, and progress. This
+            Are you sure you want to delete &quot;{documentTitle}&quot;? This will permanently
+            remove the document and all its exercises, solutions, and progress. This
             action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>

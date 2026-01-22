@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress";
 
 const statusLabels: Record<string, string> = {
   pending: "Waiting to start",
-  uploading: "Uploading PDF",
+  uploading: "Uploading document",
   extracting: "Extracting text from PDF",
   structuring: "Organizing chapters",
   embedding: "Creating search index",
@@ -31,10 +31,10 @@ const statusProgress: Record<string, number> = {
 };
 
 export function ProcessingStatus({
-  textbookId,
+  documentId,
   initialStatus,
 }: {
-  textbookId: string;
+  documentId: string;
   initialStatus: string;
 }) {
   const router = useRouter();
@@ -50,9 +50,9 @@ export function ProcessingStatus({
     // Poll for updates every 2 seconds
     const interval = setInterval(async () => {
       const { data } = await supabase
-        .from("textbooks")
+        .from("documents")
         .select("processing_status")
-        .eq("id", textbookId)
+        .eq("id", documentId)
         .single() as { data: { processing_status: string } | null };
 
       if (data && data.processing_status !== status) {
@@ -67,7 +67,7 @@ export function ProcessingStatus({
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [textbookId, status, supabase, router]);
+  }, [documentId, status, supabase, router]);
 
   if (status === "completed" || status === "failed") {
     return null;
@@ -79,7 +79,7 @@ export function ProcessingStatus({
         <div className="flex items-center gap-4">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
           <div className="flex-1">
-            <h3 className="font-semibold text-foreground">Processing your textbook...</h3>
+            <h3 className="font-semibold text-foreground">Processing your document...</h3>
             <p className="text-sm text-muted-foreground mt-1">
               {statusLabels[status]}
             </p>

@@ -76,13 +76,13 @@ export default async function ExercisePage({
       {/* Navigation Header */}
       <div className="flex items-center justify-between">
         <Link
-          href={`/textbook/${exercise.textbook_id}`}
+          href={`/document/${exercise.document_id}`}
           className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          Back to Textbook
+          Back to Document
         </Link>
 
         <div className="flex items-center gap-2">
